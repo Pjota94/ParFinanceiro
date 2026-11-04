@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import Image from 'next/image';
 import api from '../services/api';
 import type { AuthState } from '../types';
 
@@ -61,11 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-50 to-pink-50">
-        <div className="text-center">
-          <div className="text-4xl mb-3">💑</div>
-          <p className="text-violet-600 font-medium">Carregando...</p>
-        </div>
+      <div role="status" aria-label="Carregando" className="flex min-h-screen items-center justify-center bg-surface">
+        <Image src="/logo-icone.png" alt="" width={552} height={552} priority className="size-24 animate-pulse object-contain" />
+        <span className="sr-only">Carregando…</span>
       </div>
     );
   }

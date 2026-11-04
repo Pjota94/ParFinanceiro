@@ -3,8 +3,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { get, all, exec } from '../../../server/db';
+import { get, exec } from '../../../server/db';
 import { getAuth, unauthorized } from '../../../server/auth';
+import { getMonthExpenses } from '../../../server/projections';
 
 export async function GET(req: Request) {
   const auth = getAuth(req);
@@ -15,35 +16,26 @@ export async function GET(req: Request) {
   const m = parseInt(searchParams.get('month') || '') || now.getMonth() + 1;
   const y = parseInt(searchParams.get('year') || '') || now.getFullYear();
 
-  const expenses = await all(
-    `SELECT e.*, u.name as user_name, u.avatar_color
-     FROM expenses e JOIN users u ON e.user_id = u.id
-     WHERE e.couple_id = ? AND e.month = ? AND e.year = ?
-     ORDER BY e.date DESC, e.created_at DESC`,
-    [auth.coupleId, m, y]
-  );
+  const expenses = await getMonthExpenses(auth.coupleId, m, y);
 
-  const byUser = await all(
-    `SELECT e.user_id, u.name as user_name, u.avatar_color, SUM(e.amount) as total
-     FROM expenses e JOIN users u ON e.user_id = u.id
-     WHERE e.couple_id = ? AND e.month = ? AND e.year = ?
-     GROUP BY e.user_id`,
-    [auth.coupleId, m, y]
-  );
-
-  const byCategory = await all(
-    `SELECT category, SUM(amount) as total, COUNT(*) as count
-     FROM expenses WHERE couple_id = ? AND month = ? AND year = ?
-     GROUP BY category ORDER BY total DESC`,
-    [auth.coupleId, m, y]
-  );
-
-  const byType = await all(
-    `SELECT expense_type, recurrence, SUM(amount) as total, COUNT(*) as count
-     FROM expenses WHERE couple_id = ? AND month = ? AND year = ?
-     GROUP BY expense_type, recurrence`,
-    [auth.coupleId, m, y]
-  );
+  const userMap = new Map<string, { user_id: string; user_name: string; avatar_color: string; total: number }>();
+  const catMap = new Map<string, { category: string; total: number; count: number }>();
+  const typeMap = new Map<string, { expense_type: string; recurrence: string; total: number; count: number }>();
+  for (const e of expenses) {
+    const u = userMap.get(e.user_id) ?? { user_id: e.user_id, user_name: e.user_name, avatar_color: e.avatar_color, total: 0 };
+    u.total += e.amount;
+    userMap.set(e.user_id, u);
+    const c = catMap.get(e.category) ?? { category: e.category, total: 0, count: 0 };
+    c.total += e.amount; c.count += 1;
+    catMap.set(e.category, c);
+    const tk = `${e.expense_type}|${e.recurrence}`;
+    const t = typeMap.get(tk) ?? { expense_type: e.expense_type, recurrence: e.recurrence, total: 0, count: 0 };
+    t.total += e.amount; t.count += 1;
+    typeMap.set(tk, t);
+  }
+  const byUser = [...userMap.values()];
+  const byCategory = [...catMap.values()].sort((a, b) => b.total - a.total);
+  const byType = [...typeMap.values()];
 
   return NextResponse.json({ expenses, byUser, byCategory, byType });
 }

@@ -114,6 +114,8 @@ async function runMigrations() {
     { col: 'total_installments', sql: 'ALTER TABLE expenses ADD COLUMN total_installments INTEGER' },
     { col: 'current_installment', sql: 'ALTER TABLE expenses ADD COLUMN current_installment INTEGER DEFAULT 1' },
     { col: 'loan_id', sql: 'ALTER TABLE expenses ADD COLUMN loan_id TEXT' },
+    // Último mês (ano*12 + mês-1) em que um gasto fixo ainda aparece; NULL = sem fim
+    { col: 'recurrence_end', sql: 'ALTER TABLE expenses ADD COLUMN recurrence_end INTEGER' },
   ];
   const info = await client.execute('PRAGMA table_info(expenses)');
   const existing = info.rows.map((r) => r.name as string);

@@ -77,6 +77,8 @@ export async function GET(req: Request, ctx: Ctx) {
     remaining_installments: remainingInstallments,
     remaining_amount: remainingAmount,
     estimated_end_date: estimatedEndDate,
+    first_date: installments[0]?.date ?? latest.date,
+    last_date: latest.date,
     progress_pct: Math.min((latest.current_installment / latest.total_installments) * 100, 100),
     installments,
   });

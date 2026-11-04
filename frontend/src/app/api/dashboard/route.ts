@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { get, all } from '../../../server/db';
 import { getAuth, unauthorized } from '../../../server/auth';
+import { getMonthExpenses } from '../../../server/projections';
 
 export async function GET(req: Request) {
   const auth = getAuth(req);
@@ -30,22 +31,21 @@ export async function GET(req: Request) {
     [auth.coupleId, m, y]
   );
 
-  const totalExpenses = await get<{ total: number | null }>(
-    'SELECT SUM(amount) as total FROM expenses WHERE couple_id = ? AND month = ? AND year = ?',
-    [auth.coupleId, m, y]
-  );
-  const expensesByPerson = await all(
-    `SELECT e.user_id, u.name, u.avatar_color, SUM(e.amount) as total
-     FROM expenses e JOIN users u ON e.user_id = u.id
-     WHERE e.couple_id = ? AND e.month = ? AND e.year = ? GROUP BY e.user_id`,
-    [auth.coupleId, m, y]
-  );
-  const expensesByCategory = await all(
-    `SELECT category, SUM(amount) as total, COUNT(*) as count
-     FROM expenses WHERE couple_id = ? AND month = ? AND year = ?
-     GROUP BY category ORDER BY total DESC`,
-    [auth.coupleId, m, y]
-  );
+  const monthExpenses = await getMonthExpenses(auth.coupleId, m, y);
+  const totalExpenses: { total: number } = { total: monthExpenses.reduce((s, e) => s + e.amount, 0) };
+
+  const personMap = new Map<string, { user_id: string; name: string; avatar_color: string; total: number }>();
+  const catMap = new Map<string, { category: string; total: number; count: number }>();
+  for (const e of monthExpenses) {
+    const p = personMap.get(e.user_id) ?? { user_id: e.user_id, name: e.user_name, avatar_color: e.avatar_color, total: 0 };
+    p.total += e.amount;
+    personMap.set(e.user_id, p);
+    const c = catMap.get(e.category) ?? { category: e.category, total: 0, count: 0 };
+    c.total += e.amount; c.count += 1;
+    catMap.set(e.category, c);
+  }
+  const expensesByPerson = [...personMap.values()];
+  const expensesByCategory = [...catMap.values()].sort((a, b) => b.total - a.total);
 
   const last6Months = [];
   for (let i = 5; i >= 0; i--) {
@@ -56,10 +56,9 @@ export async function GET(req: Request) {
       'SELECT SUM(amount) as total FROM incomes WHERE couple_id = ? AND month = ? AND year = ?',
       [auth.coupleId, mo, ye]
     );
-    const exp = await get<{ total: number | null }>(
-      'SELECT SUM(amount) as total FROM expenses WHERE couple_id = ? AND month = ? AND year = ?',
-      [auth.coupleId, mo, ye]
-    );
+    const exp = {
+      total: (await getMonthExpenses(auth.coupleId, mo, ye)).reduce((s, e) => s + e.amount, 0),
+    };
     last6Months.push({
       month: mo,
       year: ye,

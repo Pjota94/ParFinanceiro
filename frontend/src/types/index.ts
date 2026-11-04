@@ -59,6 +59,10 @@ export interface Expense {
   // Agrupador de empréstimo/financiamento (todas as parcelas do mesmo contrato)
   loan_id: string | null;
   created_at: string;
+  /** Último mês do gasto fixo (ano*12 + mês-1); null = sem data de término */
+  recurrence_end?: number | null;
+  /** Lançamento projetado (fixo/parcela futura), não existe no banco */
+  projected?: boolean;
 }
 
 export interface Loan {

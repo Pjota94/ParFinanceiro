@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Share2, CreditCard, Building2, RefreshCw, Hash, ExternalLink, SearchX, ShoppingCart, Wallet } from 'lucide-react';
+import { Plus, Share2, CreditCard, Building2, RefreshCw, Hash, ExternalLink, CalendarX2, SearchX, ShoppingCart, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import api from '../services/api';
@@ -49,6 +49,9 @@ function expenseStatus(e: Expense): 'pago' | 'pendente' {
   return e.date > today ? 'pendente' : 'pago';
 }
 
+const canEndRecurrence = (e: Expense, userId?: string) =>
+  e.recurrence === 'fixo' && e.user_id === userId && (e.recurrence_end == null || e.recurrence_end > e.year * 12 + e.month - 1);
+
 function ExpenseBadges({ expense }: { expense: Expense }) {
   const badges: React.ReactNode[] = [];
   const inst = expense.total_installments ? `${expense.current_installment}/${expense.total_installments}x` : null;
@@ -60,6 +63,9 @@ function ExpenseBadges({ expense }: { expense: Expense }) {
   }
   if (expense.expense_type === 'financiamento') badges.push(<Badge key="fin" variant="warning"><Building2 size={11} aria-hidden="true" /> {inst ?? 'Financiamento'}</Badge>);
   if (expense.expense_type === 'emprestimo') badges.push(<Badge key="emp" variant="orange"><Hash size={11} aria-hidden="true" /> {inst ?? 'Empréstimo'}</Badge>);
+  if (expense.projected) badges.push(<Badge key="proj" variant="secondary" title="Gerado automaticamente a partir de um lançamento anterior">Automático</Badge>);
+  if (expense.recurrence === 'fixo' && expense.recurrence_end === expense.year * 12 + expense.month - 1)
+    badges.push(<Badge key="end" variant="warning">Último mês</Badge>);
   if (expense.recurrence === 'fixo') badges.push(<Badge key="fixo" variant="success"><RefreshCw size={11} aria-hidden="true" /> Fixo</Badge>);
   if (expense.recurrence === 'parcelado' && expense.expense_type === 'normal') badges.push(<Badge key="parc" variant="navy"><Hash size={11} aria-hidden="true" /> {inst ?? 'Parcelado'}</Badge>);
   return <>{badges}</>;
@@ -116,6 +122,8 @@ export default function Expenses() {
   const [saving, setSaving] = useState(false);
 
   const [toDelete, setToDelete] = useState<Expense | null>(null);
+  const [toEnd, setToEnd] = useState<Expense | null>(null);
+  const [ending, setEnding] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -208,6 +216,18 @@ export default function Expenses() {
       refetch();
     } catch { toast.error('Não conseguimos remover agora. Tente de novo.'); }
     finally { setDeleting(false); }
+  }
+
+  async function confirmEnd() {
+    if (!toEnd) return;
+    setEnding(true);
+    try {
+      await api.post(`/expenses/${toEnd.id}/end-recurrence`);
+      toast.success('Recorrência encerrada. Não aparecerá nos próximos meses.');
+      setToEnd(null);
+      refetch();
+    } catch { toast.error('Não conseguimos encerrar agora. Tente de novo.'); }
+    finally { setEnding(false); }
   }
 
   const totalExpenses = byUser.reduce((s, p) => s + p.total, 0);
@@ -356,7 +376,7 @@ export default function Expenses() {
                 <tbody>
                   {sorted.map((expense) => {
                     const cat = catOf(expense.category);
-                    const own = expense.user_id === user?.id;
+                    const own = expense.user_id === user?.id && !expense.projected;
                     const isLoan = expense.expense_type === 'financiamento' || expense.expense_type === 'emprestimo';
                     return (
                       <tr key={expense.id} className="interactive border-b border-line align-top last:border-0 hover:bg-surface-2">
@@ -378,15 +398,21 @@ export default function Expenses() {
                         <td className="px-3 py-3"><StatusBadge status={expenseStatus(expense)} /></td>
                         <td className="num whitespace-nowrap px-3 py-3 text-right font-bold text-negative">{formatCurrency(expense.amount)}</td>
                         <td className="px-5 py-2">
-                          {own && (
+                          {(own || canEndRecurrence(expense, user?.id)) && (
                             <div className="flex items-center justify-end">
+                              {canEndRecurrence(expense, user?.id) && (
+                                <button type="button" onClick={() => setToEnd(expense)} aria-label={`Encerrar recorrência de ${expense.description}`} title="Encerrar recorrência"
+                                  className="interactive inline-flex size-11 items-center justify-center rounded-md text-ink-3 hover:bg-warning-soft hover:text-warning sm:size-9">
+                                  <CalendarX2 size={16} aria-hidden="true" />
+                                </button>
+                              )}
                               {isLoan && (
                                 <Link href="/emprestimos" aria-label={`Ver ${expense.description} em Empréstimos`} title="Ver em Empréstimos"
                                   className="interactive inline-flex size-9 items-center justify-center rounded-md text-ink-3 hover:bg-primary-soft hover:text-primary">
                                   <ExternalLink size={16} aria-hidden="true" />
                                 </Link>
                               )}
-                              <RowActions what={`gasto ${expense.description}`} onEdit={() => openEdit(expense)} onDelete={() => setToDelete(expense)} />
+                              {own && <RowActions what={`gasto ${expense.description}`} onEdit={() => openEdit(expense)} onDelete={() => setToDelete(expense)} />}
                             </div>
                           )}
                         </td>
@@ -401,7 +427,7 @@ export default function Expenses() {
             <ul className="divide-y divide-line md:hidden">
               {sorted.map((expense) => {
                 const cat = catOf(expense.category);
-                const own = expense.user_id === user?.id;
+                const own = expense.user_id === user?.id && !expense.projected;
                 return (
                   <li key={expense.id} className="space-y-3 p-4">
                     <div className="flex items-start gap-3">
@@ -418,9 +444,15 @@ export default function Expenses() {
                       <ExpenseBadges expense={expense} />
                     </div>
                     {expense.notes && <p className="t-support">{expense.notes}</p>}
-                    {own && (
-                      <div className="-mb-2 flex justify-end">
-                        <RowActions what={`gasto ${expense.description}`} onEdit={() => openEdit(expense)} onDelete={() => setToDelete(expense)} />
+                    {(own || canEndRecurrence(expense, user?.id)) && (
+                      <div className="-mb-2 flex items-center justify-end">
+                        {canEndRecurrence(expense, user?.id) && (
+                          <button type="button" onClick={() => setToEnd(expense)} aria-label={`Encerrar recorrência de ${expense.description}`} title="Encerrar recorrência"
+                            className="interactive inline-flex size-11 items-center justify-center rounded-md text-ink-3 hover:bg-warning-soft hover:text-warning">
+                            <CalendarX2 size={16} aria-hidden="true" />
+                          </button>
+                        )}
+                        {own && <RowActions what={`gasto ${expense.description}`} onEdit={() => openEdit(expense)} onDelete={() => setToDelete(expense)} />}
                       </div>
                     )}
                   </li>
@@ -582,6 +614,16 @@ export default function Expenses() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!toEnd}
+        title="Encerrar este gasto fixo?"
+        description={toEnd ? `“${toEnd.description}” continua em ${MONTHS[toEnd.month - 1]} de ${toEnd.year}, mas não aparecerá mais nos meses seguintes.` : ''}
+        confirmLabel="Encerrar"
+        loading={ending}
+        onConfirm={confirmEnd}
+        onCancel={() => setToEnd(null)}
+      />
 
       <ConfirmDialog
         open={!!toDelete}
