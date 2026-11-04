@@ -4,10 +4,17 @@ const fs = require('fs');
 
 // Produção: Turso (TURSO_DATABASE_URL=libsql://... + TURSO_AUTH_TOKEN).
 // Desenvolvimento: arquivo SQLite local em backend/data/parfinanceiro.db.
+// Em serverless (Vercel) o filesystem é somente leitura, exceto /tmp — por isso
+// o fallback de arquivo usa /tmp e nunca derruba o carregamento do módulo.
 let url = process.env.TURSO_DATABASE_URL;
 if (!url) {
-  const dir = path.join(__dirname, '../../data');
-  fs.mkdirSync(dir, { recursive: true });
+  const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const dir = isServerless ? '/tmp' : path.join(__dirname, '../../data');
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (err) {
+    console.error('[db] não foi possível criar diretório de dados:', err.message);
+  }
   url = 'file:' + path.join(dir, 'parfinanceiro.db');
 }
 

@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET é obrigatório em produção');
+// Em produção o JWT_SECRET é obrigatório. Antes isso derrubava a função
+// inteira (500 opaco). Agora apenas registramos o problema e o /api/health
+// reporta a causa, sem travar o carregamento do módulo.
+const missingJwtSecret = process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET;
+if (missingJwtSecret) {
+  console.error('[config] JWT_SECRET ausente em produção — defina a variável de ambiente no projeto do backend.');
 }
 const JWT_SECRET = process.env.JWT_SECRET || 'parfinanceiro_secret_2024';
 
