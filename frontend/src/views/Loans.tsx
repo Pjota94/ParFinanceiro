@@ -464,7 +464,7 @@ function LoanDetailBody({ detail, onRegister }: { detail: LoanDetail; onRegister
           <h3 className="mb-2 text-sm font-semibold text-ink">Histórico de parcelas</h3>
           <ul className="scrollbar-thin max-h-60 space-y-1.5 overflow-y-auto pr-1">
             {[...detail.installments].reverse().map((inst) => (
-              <li key={inst.id} className="flex items-center gap-3 rounded-md bg-surface-2 p-2.5">
+              <li key={inst.id} className="mb-[25px] flex items-center gap-3 rounded-md bg-surface-2 p-2.5">
                 <span className="num flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-fg">{inst.current_installment}</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
