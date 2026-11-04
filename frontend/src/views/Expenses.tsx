@@ -295,7 +295,7 @@ export default function Expenses() {
           {people.map((p) => (
             <Card key={p.id} className="p-5" style={{ borderTop: `3px solid ${p.color}` }}>
               <div className="flex items-center gap-2">
-                <Avatar name={p.name} color={p.color} size="sm" />
+                <Avatar userId={p.id} name={p.name} color={p.color} size="sm" />
                 <span className="text-sm font-medium text-ink [overflow-wrap:anywhere] line-clamp-1">{p.name}</span>
               </div>
               <p className="t-value mt-3">{formatCurrency(p.total)}</p>
@@ -382,7 +382,7 @@ export default function Expenses() {
                       <tr key={expense.id} className="interactive border-b border-line align-top last:border-0 hover:bg-surface-2">
                         <td className="px-5 py-3">
                           <div className="flex items-start gap-3">
-                            <Avatar name={expense.user_name} color={expense.avatar_color} size="sm" />
+                            <Avatar userId={expense.user_id} name={expense.user_name} color={expense.avatar_color} size="sm" />
                             <div className="min-w-0">
                               <p className="font-semibold text-ink [overflow-wrap:anywhere]">{expense.description}</p>
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -431,7 +431,7 @@ export default function Expenses() {
                 return (
                   <li key={expense.id} className="space-y-3 p-4">
                     <div className="flex items-start gap-3">
-                      <Avatar name={expense.user_name} color={expense.avatar_color} size="sm" />
+                      <Avatar userId={expense.user_id} name={expense.user_name} color={expense.avatar_color} size="sm" />
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-ink [overflow-wrap:anywhere]">{expense.description}</p>
                         <p className="t-support num">{expense.user_name} · {formatDate(expense.date)}</p>

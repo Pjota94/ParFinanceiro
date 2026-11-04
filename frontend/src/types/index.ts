@@ -3,6 +3,8 @@ export interface User {
   name: string;
   email: string;
   avatarColor: string;
+  /** Foto de perfil (data URL) ou null para usar as iniciais */
+  avatarUrl?: string | null;
   role: string;
 }
 

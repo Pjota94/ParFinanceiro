@@ -117,6 +117,10 @@ async function runMigrations() {
     // Último mês (ano*12 + mês-1) em que um gasto fixo ainda aparece; NULL = sem fim
     { col: 'recurrence_end', sql: 'ALTER TABLE expenses ADD COLUMN recurrence_end INTEGER' },
   ];
+  const userInfo = await client.execute('PRAGMA table_info(users)');
+  if (!userInfo.rows.some((r) => r.name === 'avatar_url')) {
+    await client.execute('ALTER TABLE users ADD COLUMN avatar_url TEXT');
+  }
   const info = await client.execute('PRAGMA table_info(expenses)');
   const existing = info.rows.map((r) => r.name as string);
   for (const { col, sql } of migrations) {

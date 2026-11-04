@@ -13,7 +13,16 @@ interface UserRow {
   email: string;
   password_hash: string;
   avatar_color: string;
+  avatar_url?: string | null;
   role: string;
+}
+
+interface PartnerRow {
+  id: string;
+  name: string;
+  email: string;
+  avatar_color: string;
+  avatar_url: string | null;
 }
 
 export async function POST(req: Request) {
@@ -29,8 +38,8 @@ export async function POST(req: Request) {
   if (!valid) return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
 
   const couple = await get<{ id: string; couple_name: string }>('SELECT * FROM couples WHERE id = ?', [user.couple_id]);
-  const partner = await get(
-    'SELECT id, name, email, avatar_color FROM users WHERE couple_id = ? AND id != ?',
+  const partner = await get<PartnerRow>(
+    'SELECT id, name, email, avatar_color, avatar_url FROM users WHERE couple_id = ? AND id != ?',
     [user.couple_id, user.id]
   );
 
@@ -38,8 +47,10 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     token,
-    user: { id: user.id, name: user.name, email: user.email, avatarColor: user.avatar_color, role: user.role },
+    user: { id: user.id, name: user.name, email: user.email, avatarColor: user.avatar_color, avatarUrl: user.avatar_url, role: user.role },
     couple: { id: couple!.id, name: couple!.couple_name },
-    partner: partner ?? null,
+    partner: partner
+      ? { id: partner.id, name: partner.name, email: partner.email, avatarColor: partner.avatar_color, avatarUrl: partner.avatar_url }
+      : null,
   });
 }

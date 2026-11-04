@@ -60,7 +60,7 @@ export default function PersonSplit({ title, emptyText, link, people, total }: P
           {people.map((p) => (
             <li key={p.id} className="min-w-0 rounded-md border border-line p-3" style={{ borderTop: `3px solid ${p.color}` }}>
               <div className="flex items-center gap-2">
-                <Avatar name={p.name} color={p.color} size="sm" />
+                <Avatar userId={p.id} name={p.name} color={p.color} size="sm" />
                 <span className="min-w-0 flex-1 text-sm font-medium text-ink [overflow-wrap:anywhere] line-clamp-2">{p.name}</span>
               </div>
               <p className="t-value mt-3 text-xl leading-7 text-ink">{formatCurrency(p.total)}</p>

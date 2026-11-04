@@ -389,7 +389,7 @@ export default function Goals() {
                 {detailGoal.byUser.map((u) => (
                   <div key={u.user_id} className="flex items-center justify-between rounded-md bg-surface-2 p-3">
                     <div className="flex items-center gap-2">
-                      <Avatar name={u.user_name} color={u.avatar_color} size="sm" />
+                      <Avatar userId={u.user_id} name={u.user_name} color={u.avatar_color} size="sm" />
                       <span className="text-sm text-ink">{u.user_name}</span>
                     </div>
                     <span className="num text-sm font-bold text-positive">{formatCurrency(u.total)}</span>
@@ -401,7 +401,7 @@ export default function Goals() {
               <ul className="scrollbar-thin max-h-64 space-y-2 overflow-y-auto">
                 {detailGoal.contributions.map((c) => (
                   <li key={c.id} className="flex items-center gap-3 rounded-md border border-line p-3">
-                    <Avatar name={c.user_name} color={c.avatar_color} size="sm" />
+                    <Avatar userId={c.user_id} name={c.user_name} color={c.avatar_color} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="num text-sm font-semibold text-ink">{formatCurrency(c.amount)}</p>
                       <p className="t-support num">{c.user_name} · {new Date(c.created_at).toLocaleDateString('pt-BR')}</p>

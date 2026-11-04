@@ -283,7 +283,7 @@ export default function Loans() {
                                 <div className="min-w-0">
                                   <p className="font-semibold text-ink [overflow-wrap:anywhere]">{loan.description}</p>
                                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                                    <Avatar name={loan.user_name} color={loan.avatar_color} size="sm" />
+                                    <Avatar userId={loan.user_id} name={loan.user_name} color={loan.avatar_color} size="sm" />
                                     <span className="t-support max-w-24 truncate" title={loan.user_name}>{loan.user_name}</span>
                                     <Badge variant={meta.badge}>{meta.label}</Badge>
                                   </div>
@@ -424,7 +424,7 @@ function LoanDetailBody({ detail, onRegister }: { detail: LoanDetail; onRegister
         <StatusBadge status={st.status} label={st.label} />
         <Badge variant="secondary">{cat?.icon} {cat?.label || detail.category}</Badge>
         <span className="flex items-center gap-1.5 text-sm text-ink-2">
-          <Avatar name={detail.user_name} color={detail.avatar_color} size="sm" /> {detail.user_name}
+          <Avatar userId={detail.user_id} name={detail.user_name} color={detail.avatar_color} size="sm" /> {detail.user_name}
         </span>
       </div>
 

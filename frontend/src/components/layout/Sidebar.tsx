@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { LogOut, Moon, Sun } from 'lucide-react';
+import { useState } from 'react';
+import { Camera, LogOut, Moon, Sun } from 'lucide-react';
 import { navItems } from './navItems';
 import { useAuth } from '../../contexts/AuthContext';
 import Avatar from '../ui/Avatar';
+import ProfileModal from './ProfileModal';
 import Tooltip from '../ui/Tooltip';
 import { cn } from '../../lib/utils';
 
@@ -17,7 +19,7 @@ interface SidebarProps {
   onNavigate?: () => void;
 }
 
-function PersonRow({ name, color, caption, highlight }: { name: string; color: string; caption: string; highlight?: boolean }) {
+function PersonRow({ id, name, color, caption, highlight }: { id: string; name: string; color: string; caption: string; highlight?: boolean }) {
   return (
     <Tooltip content={name} side="right">
       <div
@@ -27,7 +29,7 @@ function PersonRow({ name, color, caption, highlight }: { name: string; color: s
           highlight ? 'bg-white/10 ring-1 ring-brand-green/40' : 'bg-white/5'
         )}
       >
-        <Avatar name={name} color={color} size="sm" />
+        <Avatar userId={id} name={name} color={color} size="sm" />
         <div className="min-w-0 flex-1">
           {/* quebra de linha em vez de cortar com reticências */}
           <p className="text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere] line-clamp-2">{name}</p>
@@ -42,6 +44,7 @@ function PersonRow({ name, color, caption, highlight }: { name: string; color: s
 export default function Sidebar({ theme, onToggleTheme, onNavigate }: SidebarProps) {
   const { user, couple, partner, logout } = useAuth();
   const pathname = usePathname();
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <div className="flex h-full flex-col bg-brand-navy text-white">
@@ -58,8 +61,8 @@ export default function Sidebar({ theme, onToggleTheme, onNavigate }: SidebarPro
           {couple?.name || 'Nosso casal'}
         </p>
         <div className="space-y-1.5">
-          {user && <PersonRow name={user.name} color={user.avatarColor} caption="Você" highlight />}
-          {partner && <PersonRow name={partner.name} color={partner.avatarColor} caption="Parceiro(a)" />}
+          {user && <PersonRow id={user.id} name={user.name} color={user.avatarColor} caption="Você" highlight />}
+          {partner && <PersonRow id={partner.id} name={partner.name} color={partner.avatarColor} caption="Parceiro(a)" />}
         </div>
       </section>
 
@@ -92,6 +95,13 @@ export default function Sidebar({ theme, onToggleTheme, onNavigate }: SidebarPro
       {/* Rodapé */}
       <div className="space-y-1 border-t border-white/10 p-4">
         <button
+          onClick={() => setProfileOpen(true)}
+          className="interactive flex min-h-11 w-full items-center gap-3 rounded-md px-3.5 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
+        >
+          <Camera size={18} aria-hidden="true" />
+          Foto de perfil
+        </button>
+        <button
           onClick={onToggleTheme}
           className="interactive flex min-h-11 w-full items-center gap-3 rounded-md px-3.5 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
         >
@@ -106,6 +116,7 @@ export default function Sidebar({ theme, onToggleTheme, onNavigate }: SidebarPro
           Sair da conta
         </button>
       </div>
+      <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }
