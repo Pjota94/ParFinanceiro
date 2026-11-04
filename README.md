@@ -13,74 +13,60 @@ Sistema financeiro para casais que querem organizar as finanças com **transpar�
 
 ## 🛠️ Tecnologias
 
-**Backend:**
-- Node.js + Express
-- SQLite (via better-sqlite3)
-- JWT para autenticação
-- bcryptjs para senhas
+Aplicação **full-stack num único projeto Next.js** (frontend + API no mesmo app):
 
-**Frontend:**
-- React + TypeScript
-- Next.js 16.2.12 (App Router) + Tailwind CSS v4
-- Recharts (gráficos)
-- React Router DOM
-- Axios
+- Next.js 16.2.12 (App Router) — páginas e rotas de API em `src/app/api/*`
+- React 19 + TypeScript
+- Tailwind CSS v4
+- Banco SQLite via **libsql/Turso** (`@libsql/client`)
+- JWT para autenticação, bcryptjs para senhas
+- Recharts (gráficos), Axios (cliente HTTP)
 
-## 🚀 Como executar
-
-### 1. Instalar dependências
+## 🚀 Como executar (desenvolvimento)
 
 ```bash
-# Backend
-cd backend && npm install
-
-# Frontend
-cd frontend && npm install
+cd frontend
+npm install
+cp .env.example .env   # defina um JWT_SECRET; deixe TURSO_* em branco para usar arquivo local
+npm run dev            # http://localhost:5173
 ```
 
-### 2. Configurar o backend
-
-```bash
-cp backend/.env.example backend/.env
-# Edite o .env e defina um JWT_SECRET seguro
-```
-
-### 3. Iniciar em desenvolvimento
-
-**Terminal 1 — Backend:**
-```bash
-cd backend && npm run dev
-# Roda em http://localhost:3001
-```
-
-**Terminal 2 — Frontend:**
-```bash
-cd frontend && npm run dev
-# Roda em http://localhost:5173
-```
-
-### 4. Acesse o sistema
-
+Sem `TURSO_DATABASE_URL`, o banco é um arquivo SQLite local em `frontend/data/parfinanceiro.db`.
 Abra `http://localhost:5173` e clique em **"Cadastrar casal"** para criar a primeira conta.
+
+## ☁️ Deploy (Vercel + Turso)
+
+Um único projeto na Vercel, com **Root Directory = `frontend`**.
+
+1. Crie um banco no [Turso](https://turso.tech) e gere a URL (`libsql://...`) e o token.
+2. Na Vercel, em Environment Variables (Production), defina:
+   - `JWT_SECRET` — gere com `openssl rand -hex 32`
+   - `TURSO_DATABASE_URL`
+   - `TURSO_AUTH_TOKEN`
+3. Faça o deploy. Teste em `/api/health` — o campo `missingEnv` deve vir vazio.
+4. Cadastre a conta do casal e então defina `ALLOW_REGISTRATION=false` (e redeploy) para travar novos cadastros.
+
+As tabelas são criadas automaticamente na primeira requisição.
 
 ## 📁 Estrutura do Projeto
 
 ```
 ParFinanceiro/
-├── backend/
-│   ├── src/
-│   │   ├── db/          # Configuração do SQLite
-│   │   ├── middleware/  # Autenticação JWT
-│   │   └── routes/      # auth, incomes, expenses, goals, dashboard
-│   └── data/            # Banco de dados (gerado automaticamente)
 └── frontend/
+    ├── data/                # Banco SQLite local (dev, gerado automaticamente)
     └── src/
-        ├── components/  # Layout, UI reutilizáveis
-        ├── contexts/    # AuthContext
-        ├── hooks/       # usePeriod
-        ├── pages/       # Dashboard, Incomes, Expenses, Goals, Login, Register
-        ├── services/    # API client (axios)
-        └── types/       # TypeScript types
+        ├── app/
+        │   ├── api/         # Rotas da API: auth, incomes, expenses, goals, dashboard, health
+        │   ├── (app)/       # Páginas protegidas: dashboard, rendas, gastos, emprestimos, metas
+        │   ├── login/ cadastro/
+        │   └── layout.tsx
+        ├── server/          # db (libsql) e auth (JWT) — código server-side
+        ├── components/      # Layout e UI reutilizáveis
+        ├── contexts/        # AuthContext
+        ├── hooks/           # usePeriod, useSort, useTheme...
+        ├── views/           # Telas (Dashboard, Incomes, Expenses, Goals, Login, Register)
+        ├── services/        # Cliente HTTP (axios, baseURL /api)
+        └── types/           # Tipos TypeScript
 ```
 
 ## 🔐 Segurança
@@ -89,6 +75,7 @@ ParFinanceiro/
 - Autenticação via JWT (7 dias)
 - Cada casal só acessa seus próprios dados
 - Cada pessoa só edita/deleta seus próprios lançamentos
+- `JWT_SECRET` obrigatório em produção; cadastro pode ser travado com `ALLOW_REGISTRATION=false`
 
 ---
 

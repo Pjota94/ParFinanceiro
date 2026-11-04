@@ -27,3 +27,9 @@ dist-ssr
 .next
 out
 next-env.d.ts
+
+# Banco local de desenvolvimento
+/data
+*.db
+*.db-shm
+*.db-wal
