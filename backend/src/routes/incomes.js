@@ -7,13 +7,13 @@ const { authenticateToken } = require('../middleware/auth');
 router.use(authenticateToken);
 
 // Listar rendas do mês/ano
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { month, year } = req.query;
   const now = new Date();
   const m = parseInt(month) || now.getMonth() + 1;
   const y = parseInt(year) || now.getFullYear();
 
-  const incomes = db.prepare(`
+  const incomes = await db.prepare(`
     SELECT i.*, u.name as user_name, u.avatar_color
     FROM incomes i
     JOIN users u ON i.user_id = u.id
@@ -21,7 +21,7 @@ router.get('/', (req, res) => {
     ORDER BY i.created_at DESC
   `).all(req.user.coupleId, m, y);
 
-  const summary = db.prepare(`
+  const summary = await db.prepare(`
     SELECT 
       user_id,
       u.name as user_name,
@@ -37,7 +37,7 @@ router.get('/', (req, res) => {
 });
 
 // Adicionar renda
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { description, amount, category, month, year } = req.body;
 
   if (!description || !amount) {
@@ -47,7 +47,7 @@ router.post('/', (req, res) => {
   const now = new Date();
   const id = uuidv4();
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO incomes (id, couple_id, user_id, description, amount, category, month, year)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -61,13 +61,13 @@ router.post('/', (req, res) => {
     parseInt(year) || now.getFullYear()
   );
 
-  const income = db.prepare('SELECT * FROM incomes WHERE id = ?').get(id);
+  const income = await db.prepare('SELECT * FROM incomes WHERE id = ?').get(id);
   return res.status(201).json(income);
 });
 
 // Atualizar renda
-router.put('/:id', (req, res) => {
-  const income = db.prepare('SELECT * FROM incomes WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
+router.put('/:id', async (req, res) => {
+  const income = await db.prepare('SELECT * FROM incomes WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
 
   if (!income) return res.status(404).json({ error: 'Renda não encontrada' });
 
@@ -77,7 +77,7 @@ router.put('/:id', (req, res) => {
 
   const { description, amount, category } = req.body;
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE incomes SET description = ?, amount = ?, category = ?
     WHERE id = ?
   `).run(
@@ -87,13 +87,13 @@ router.put('/:id', (req, res) => {
     req.params.id
   );
 
-  const updated = db.prepare('SELECT * FROM incomes WHERE id = ?').get(req.params.id);
+  const updated = await db.prepare('SELECT * FROM incomes WHERE id = ?').get(req.params.id);
   return res.json(updated);
 });
 
 // Deletar renda
-router.delete('/:id', (req, res) => {
-  const income = db.prepare('SELECT * FROM incomes WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
+router.delete('/:id', async (req, res) => {
+  const income = await db.prepare('SELECT * FROM incomes WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
 
   if (!income) return res.status(404).json({ error: 'Renda não encontrada' });
 
@@ -101,7 +101,7 @@ router.delete('/:id', (req, res) => {
     return res.status(403).json({ error: 'Você só pode deletar suas próprias rendas' });
   }
 
-  db.prepare('DELETE FROM incomes WHERE id = ?').run(req.params.id);
+  await db.prepare('DELETE FROM incomes WHERE id = ?').run(req.params.id);
   return res.json({ message: 'Renda removida com sucesso' });
 });
 

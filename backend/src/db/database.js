@@ -1,20 +1,26 @@
-const Database = require('better-sqlite3');
+const { createClient } = require('@libsql/client');
 const path = require('path');
 const fs = require('fs');
 
-const DB_DIR = path.join(__dirname, '../../data');
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
+// Produção: Turso (TURSO_DATABASE_URL=libsql://... + TURSO_AUTH_TOKEN).
+// Desenvolvimento: arquivo SQLite local em backend/data/parfinanceiro.db.
+let url = process.env.TURSO_DATABASE_URL;
+if (!url) {
+  const dir = path.join(__dirname, '../../data');
+  fs.mkdirSync(dir, { recursive: true });
+  url = 'file:' + path.join(dir, 'parfinanceiro.db');
 }
 
-const DB_PATH = path.join(DB_DIR, 'parfinanceiro.db');
-const db = new Database(DB_PATH);
+const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Converte a linha do libsql em objeto simples ({ coluna: valor })
+function toObject(columns, row) {
+  const obj = {};
+  columns.forEach((c, i) => { obj[c] = row[i]; });
+  return obj;
+}
 
-function initializeDatabase() {
-  db.exec(`
+const SCHEMA = `
     -- Tabela de casais
     CREATE TABLE IF NOT EXISTS couples (
       id TEXT PRIMARY KEY,
@@ -109,13 +115,10 @@ function initializeDatabase() {
       FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
-  `);
+  `;
 
-  console.log('✅ Banco de dados inicializado com sucesso!');
-}
-
-// Migração: adiciona colunas novas em bancos de dados existentes sem recriar a tabela
-function runMigrations() {
+async function runMigrations() {
+  // Adiciona colunas novas em bancos existentes sem recriar a tabela
   const migrations = [
     { col: 'expense_type',         sql: "ALTER TABLE expenses ADD COLUMN expense_type TEXT DEFAULT 'normal'" },
     { col: 'recurrence',           sql: "ALTER TABLE expenses ADD COLUMN recurrence TEXT DEFAULT 'unico'" },
@@ -125,17 +128,66 @@ function runMigrations() {
     { col: 'loan_id',              sql: "ALTER TABLE expenses ADD COLUMN loan_id TEXT" },
   ];
 
-  const existing = db.prepare("PRAGMA table_info(expenses)").all().map((c) => c.name);
+  const info = await client.execute('PRAGMA table_info(expenses)');
+  const existing = info.rows.map((r) => r.name);
 
   for (const { col, sql } of migrations) {
     if (!existing.includes(col)) {
-      db.exec(sql);
+      await client.execute(sql);
       console.log(`  🔄 Migração aplicada: expenses.${col}`);
     }
   }
 }
 
-initializeDatabase();
-runMigrations();
+// Inicialização única (também serve em ambiente serverless: roda na 1ª requisição)
+let readyPromise;
+function ready() {
+  if (!readyPromise) {
+    readyPromise = (async () => {
+      await client.executeMultiple('PRAGMA foreign_keys = ON;');
+      await client.executeMultiple(SCHEMA);
+      await runMigrations();
+      console.log('✅ Banco de dados inicializado com sucesso!');
+    })().catch((err) => {
+      readyPromise = undefined; // permite nova tentativa
+      throw err;
+    });
+  }
+  return readyPromise;
+}
 
-module.exports = db;
+async function exec(sql, args = []) {
+  await ready();
+  return client.execute({ sql, args });
+}
+
+/**
+ * API assíncrona parecida com a do better-sqlite3:
+ *   await db.prepare(sql).get(...args)  -> objeto | undefined
+ *   await db.prepare(sql).all(...args)  -> array de objetos
+ *   await db.prepare(sql).run(...args)  -> { changes }
+ */
+function prepare(sql) {
+  return {
+    async get(...args) {
+      const r = await exec(sql, args);
+      return r.rows[0] ? toObject(r.columns, r.rows[0]) : undefined;
+    },
+    async all(...args) {
+      const r = await exec(sql, args);
+      return r.rows.map((row) => toObject(r.columns, row));
+    },
+    async run(...args) {
+      const r = await exec(sql, args);
+      return { changes: r.rowsAffected };
+    },
+  };
+}
+
+/** Executa vários comandos numa única transação. statements: [{ sql, args }] */
+async function batch(statements) {
+  await ready();
+  return client.batch(statements, 'write');
+}
+
+module.exports = { prepare, batch, ready };

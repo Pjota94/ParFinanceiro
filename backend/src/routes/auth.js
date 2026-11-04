@@ -8,6 +8,11 @@ const { JWT_SECRET } = require('../middleware/auth');
 
 // Registro de novo casal
 router.post('/register', async (req, res) => {
+  // Em produção, após criar a conta do casal, defina ALLOW_REGISTRATION=false
+  if (process.env.ALLOW_REGISTRATION === 'false') {
+    return res.status(403).json({ error: 'Cadastro desativado' });
+  }
+
   const { coupleName, person1, person2 } = req.body;
 
   if (!coupleName || !person1 || !person2) {
@@ -23,8 +28,8 @@ router.post('/register', async (req, res) => {
   }
 
   // Verificar se emails já existem
-  const existingEmail1 = db.prepare('SELECT id FROM users WHERE email = ?').get(person1.email);
-  const existingEmail2 = db.prepare('SELECT id FROM users WHERE email = ?').get(person2.email);
+  const existingEmail1 = await db.prepare('SELECT id FROM users WHERE email = ?').get(person1.email);
+  const existingEmail2 = await db.prepare('SELECT id FROM users WHERE email = ?').get(person2.email);
 
   if (existingEmail1) return res.status(400).json({ error: 'E-mail da pessoa 1 já cadastrado' });
   if (existingEmail2) return res.status(400).json({ error: 'E-mail da pessoa 2 já cadastrado' });
@@ -41,21 +46,14 @@ router.post('/register', async (req, res) => {
     const hash1 = await bcrypt.hash(person1.password, 10);
     const hash2 = await bcrypt.hash(person2.password, 10);
 
-    const registerCouple = db.transaction(() => {
-      db.prepare('INSERT INTO couples (id, couple_name) VALUES (?, ?)').run(coupleId, coupleName);
+    const insertUser = 'INSERT INTO users (id, couple_id, name, email, password_hash, avatar_color, role) VALUES (?, ?, ?, ?, ?, ?, ?)';
 
-      db.prepare(`
-        INSERT INTO users (id, couple_id, name, email, password_hash, avatar_color, role)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(user1Id, coupleId, person1.name, person1.email, hash1, '#8B5CF6', 'owner');
-
-      db.prepare(`
-        INSERT INTO users (id, couple_id, name, email, password_hash, avatar_color, role)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(user2Id, coupleId, person2.name, person2.email, hash2, '#EC4899', 'member');
-    });
-
-    registerCouple();
+    // Tudo numa transação: ou cria o casal inteiro, ou nada
+    await db.batch([
+      { sql: 'INSERT INTO couples (id, couple_name) VALUES (?, ?)', args: [coupleId, coupleName] },
+      { sql: insertUser, args: [user1Id, coupleId, person1.name, person1.email, hash1, '#8B5CF6', 'owner'] },
+      { sql: insertUser, args: [user2Id, coupleId, person2.name, person2.email, hash2, '#EC4899', 'member'] },
+    ]);
 
     return res.status(201).json({
       message: 'Casal cadastrado com sucesso!',
@@ -75,7 +73,7 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
 
   if (!user) {
     return res.status(401).json({ error: 'Credenciais inválidas' });
@@ -87,8 +85,8 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }
 
-  const couple = db.prepare('SELECT * FROM couples WHERE id = ?').get(user.couple_id);
-  const partner = db.prepare('SELECT id, name, email, avatar_color FROM users WHERE couple_id = ? AND id != ?').get(user.couple_id, user.id);
+  const couple = await db.prepare('SELECT * FROM couples WHERE id = ?').get(user.couple_id);
+  const partner = await db.prepare('SELECT id, name, email, avatar_color FROM users WHERE couple_id = ? AND id != ?').get(user.couple_id, user.id);
 
   const token = jwt.sign(
     {
@@ -119,13 +117,13 @@ router.post('/login', async (req, res) => {
 });
 
 // Verificar token e retornar dados do usuário
-router.get('/me', require('../middleware/auth').authenticateToken, (req, res) => {
-  const user = db.prepare('SELECT id, name, email, avatar_color, role FROM users WHERE id = ?').get(req.user.userId);
+router.get('/me', require('../middleware/auth').authenticateToken, async (req, res) => {
+  const user = await db.prepare('SELECT id, name, email, avatar_color, role FROM users WHERE id = ?').get(req.user.userId);
 
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
-  const couple = db.prepare('SELECT * FROM couples WHERE id = ?').get(req.user.coupleId);
-  const partner = db.prepare('SELECT id, name, email, avatar_color FROM users WHERE couple_id = ? AND id != ?').get(req.user.coupleId, user.id);
+  const couple = await db.prepare('SELECT * FROM couples WHERE id = ?').get(req.user.coupleId);
+  const partner = await db.prepare('SELECT id, name, email, avatar_color FROM users WHERE couple_id = ? AND id != ?').get(req.user.coupleId, user.id);
 
   return res.json({
     user: {

@@ -7,7 +7,7 @@ const { authenticateToken } = require('../middleware/auth');
 router.use(authenticateToken);
 
 // Listar metas do casal
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { status } = req.query;
 
   let query = `
@@ -26,18 +26,18 @@ router.get('/', (req, res) => {
 
   query += ' ORDER BY g.created_at DESC';
 
-  const goals = db.prepare(query).all(...params);
+  const goals = await db.prepare(query).all(...params);
 
   return res.json(goals);
 });
 
 // Detalhes de uma meta com contribuições
-router.get('/:id', (req, res) => {
-  const goal = db.prepare('SELECT * FROM goals WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
+router.get('/:id', async (req, res) => {
+  const goal = await db.prepare('SELECT * FROM goals WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
 
   if (!goal) return res.status(404).json({ error: 'Meta não encontrada' });
 
-  const contributions = db.prepare(`
+  const contributions = await db.prepare(`
     SELECT gc.*, u.name as user_name, u.avatar_color
     FROM goal_contributions gc
     JOIN users u ON gc.user_id = u.id
@@ -45,7 +45,7 @@ router.get('/:id', (req, res) => {
     ORDER BY gc.created_at DESC
   `).all(req.params.id);
 
-  const byUser = db.prepare(`
+  const byUser = await db.prepare(`
     SELECT gc.user_id, u.name as user_name, u.avatar_color, SUM(gc.amount) as total
     FROM goal_contributions gc
     JOIN users u ON gc.user_id = u.id
@@ -57,7 +57,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Criar meta
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { title, description, targetAmount, category, priority, deadline, color, icon } = req.body;
 
   if (!title || !targetAmount) {
@@ -66,7 +66,7 @@ router.post('/', (req, res) => {
 
   const id = uuidv4();
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO goals (id, couple_id, title, description, target_amount, category, priority, deadline, color, icon)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -82,19 +82,19 @@ router.post('/', (req, res) => {
     icon || '⭐'
   );
 
-  const goal = db.prepare('SELECT * FROM goals WHERE id = ?').get(id);
+  const goal = await db.prepare('SELECT * FROM goals WHERE id = ?').get(id);
   return res.status(201).json(goal);
 });
 
 // Atualizar meta
-router.put('/:id', (req, res) => {
-  const goal = db.prepare('SELECT * FROM goals WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
+router.put('/:id', async (req, res) => {
+  const goal = await db.prepare('SELECT * FROM goals WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
 
   if (!goal) return res.status(404).json({ error: 'Meta não encontrada' });
 
   const { title, description, targetAmount, category, priority, deadline, status, color, icon } = req.body;
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE goals SET title = ?, description = ?, target_amount = ?, category = ?, priority = ?, deadline = ?, status = ?, color = ?, icon = ?
     WHERE id = ?
   `).run(
@@ -110,23 +110,23 @@ router.put('/:id', (req, res) => {
     req.params.id
   );
 
-  const updated = db.prepare('SELECT * FROM goals WHERE id = ?').get(req.params.id);
+  const updated = await db.prepare('SELECT * FROM goals WHERE id = ?').get(req.params.id);
   return res.json(updated);
 });
 
 // Deletar meta
-router.delete('/:id', (req, res) => {
-  const goal = db.prepare('SELECT * FROM goals WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
+router.delete('/:id', async (req, res) => {
+  const goal = await db.prepare('SELECT * FROM goals WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
 
   if (!goal) return res.status(404).json({ error: 'Meta não encontrada' });
 
-  db.prepare('DELETE FROM goals WHERE id = ?').run(req.params.id);
+  await db.prepare('DELETE FROM goals WHERE id = ?').run(req.params.id);
   return res.json({ message: 'Meta removida com sucesso' });
 });
 
 // Adicionar contribuição à meta
-router.post('/:id/contributions', (req, res) => {
-  const goal = db.prepare('SELECT * FROM goals WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
+router.post('/:id/contributions', async (req, res) => {
+  const goal = await db.prepare('SELECT * FROM goals WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
 
   if (!goal) return res.status(404).json({ error: 'Meta não encontrada' });
 
@@ -138,13 +138,13 @@ router.post('/:id/contributions', (req, res) => {
 
   const id = uuidv4();
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO goal_contributions (id, goal_id, user_id, amount, notes)
     VALUES (?, ?, ?, ?, ?)
   `).run(id, req.params.id, req.user.userId, parseFloat(amount), notes || null);
 
   // Atualizar valor atual da meta
-  const totalContributions = db.prepare('SELECT SUM(amount) as total FROM goal_contributions WHERE goal_id = ?').get(req.params.id);
+  const totalContributions = await db.prepare('SELECT SUM(amount) as total FROM goal_contributions WHERE goal_id = ?').get(req.params.id);
   const newAmount = totalContributions.total || 0;
 
   let newStatus = goal.status;
@@ -152,9 +152,9 @@ router.post('/:id/contributions', (req, res) => {
     newStatus = 'concluído';
   }
 
-  db.prepare('UPDATE goals SET current_amount = ?, status = ? WHERE id = ?').run(newAmount, newStatus, req.params.id);
+  await db.prepare('UPDATE goals SET current_amount = ?, status = ? WHERE id = ?').run(newAmount, newStatus, req.params.id);
 
-  const contribution = db.prepare(`
+  const contribution = await db.prepare(`
     SELECT gc.*, u.name as user_name, u.avatar_color
     FROM goal_contributions gc JOIN users u ON gc.user_id = u.id
     WHERE gc.id = ?
@@ -162,7 +162,7 @@ router.post('/:id/contributions', (req, res) => {
 
   return res.status(201).json({
     contribution,
-    goalUpdated: db.prepare('SELECT * FROM goals WHERE id = ?').get(req.params.id)
+    goalUpdated: await db.prepare('SELECT * FROM goals WHERE id = ?').get(req.params.id)
   });
 });
 

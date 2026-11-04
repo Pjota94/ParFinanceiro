@@ -24,7 +24,12 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', name: 'Par Financeiro API', version: '1.0.0' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n💑 Par Financeiro API rodando na porta ${PORT}`);
-  console.log(`   http://localhost:${PORT}/api/health\n`);
-});
+// Local: sobe o servidor. Na Vercel, o app é exportado e roda como função serverless.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n💑 Par Financeiro API rodando na porta ${PORT}`);
+    console.log(`   http://localhost:${PORT}/api/health\n`);
+  });
+}
+
+module.exports = app;

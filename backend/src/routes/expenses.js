@@ -9,13 +9,13 @@ router.use(authenticateToken);
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /expenses?month=&year=   — gastos do mês
 // ─────────────────────────────────────────────────────────────────────────────
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { month, year } = req.query;
   const now = new Date();
   const m = parseInt(month) || now.getMonth() + 1;
   const y = parseInt(year) || now.getFullYear();
 
-  const expenses = db.prepare(`
+  const expenses = await db.prepare(`
     SELECT e.*, u.name as user_name, u.avatar_color
     FROM expenses e
     JOIN users u ON e.user_id = u.id
@@ -23,21 +23,21 @@ router.get('/', (req, res) => {
     ORDER BY e.date DESC, e.created_at DESC
   `).all(req.user.coupleId, m, y);
 
-  const byUser = db.prepare(`
+  const byUser = await db.prepare(`
     SELECT e.user_id, u.name as user_name, u.avatar_color, SUM(e.amount) as total
     FROM expenses e JOIN users u ON e.user_id = u.id
     WHERE e.couple_id = ? AND e.month = ? AND e.year = ?
     GROUP BY e.user_id
   `).all(req.user.coupleId, m, y);
 
-  const byCategory = db.prepare(`
+  const byCategory = await db.prepare(`
     SELECT category, SUM(amount) as total, COUNT(*) as count
     FROM expenses
     WHERE couple_id = ? AND month = ? AND year = ?
     GROUP BY category ORDER BY total DESC
   `).all(req.user.coupleId, m, y);
 
-  const byType = db.prepare(`
+  const byType = await db.prepare(`
     SELECT expense_type, recurrence, SUM(amount) as total, COUNT(*) as count
     FROM expenses
     WHERE couple_id = ? AND month = ? AND year = ?
@@ -50,10 +50,10 @@ router.get('/', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /expenses/loans   — lista todos os empréstimos/financiamentos agrupados
 // ─────────────────────────────────────────────────────────────────────────────
-router.get('/loans', (req, res) => {
+router.get('/loans', async (req, res) => {
   // Busca todos os registros de financiamento/empréstimo do casal
   // agrupa pelo loan_id para montar a visão de cada contrato
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT
       e.loan_id,
       e.description,
@@ -98,11 +98,11 @@ router.get('/loans', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /expenses/loans/:loanId   — detalhe de um empréstimo/financiamento
 // ─────────────────────────────────────────────────────────────────────────────
-router.get('/loans/:loanId', (req, res) => {
+router.get('/loans/:loanId', async (req, res) => {
   const { loanId } = req.params;
 
   // Registro mais recente como referência (metadados do contrato)
-  const latest = db.prepare(`
+  const latest = await db.prepare(`
     SELECT e.*, u.name as user_name, u.avatar_color
     FROM expenses e JOIN users u ON e.user_id = u.id
     WHERE e.loan_id = ? AND e.couple_id = ?
@@ -113,7 +113,7 @@ router.get('/loans/:loanId', (req, res) => {
   if (!latest) return res.status(404).json({ error: 'Empréstimo/Financiamento não encontrado' });
 
   // Todas as parcelas já lançadas, ordenadas
-  const installments = db.prepare(`
+  const installments = await db.prepare(`
     SELECT e.*, u.name as user_name, u.avatar_color
     FROM expenses e JOIN users u ON e.user_id = u.id
     WHERE e.loan_id = ? AND e.couple_id = ?
@@ -163,7 +163,7 @@ router.get('/loans/:loanId', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /expenses   — criar gasto
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const {
     description, amount, category, isShared, date, notes, month, year,
     expenseType, recurrence, creditCardBank, totalInstallments, currentInstallment,
@@ -194,7 +194,7 @@ router.post('/', (req, res) => {
     resolvedLoanId = loanId || uuidv4();
   }
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO expenses (
       id, couple_id, user_id, description, amount, category, is_shared,
       date, notes, month, year,
@@ -217,7 +217,7 @@ router.post('/', (req, res) => {
     resolvedLoanId
   );
 
-  const expense = db.prepare(`
+  const expense = await db.prepare(`
     SELECT e.*, u.name as user_name, u.avatar_color
     FROM expenses e JOIN users u ON e.user_id = u.id
     WHERE e.id = ?
@@ -229,8 +229,8 @@ router.post('/', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // PUT /expenses/:id   — atualizar gasto
 // ─────────────────────────────────────────────────────────────────────────────
-router.put('/:id', (req, res) => {
-  const expense = db.prepare('SELECT * FROM expenses WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
+router.put('/:id', async (req, res) => {
+  const expense = await db.prepare('SELECT * FROM expenses WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
   if (!expense) return res.status(404).json({ error: 'Gasto não encontrado' });
   if (expense.user_id !== req.user.userId) return res.status(403).json({ error: 'Você só pode editar seus próprios gastos' });
 
@@ -243,7 +243,7 @@ router.put('/:id', (req, res) => {
   const et = expenseType || expense.expense_type;
   if (et === 'financiamento' || et === 'emprestimo') rec = 'parcelado';
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE expenses SET
       description = ?, amount = ?, category = ?, is_shared = ?, date = ?, notes = ?,
       expense_type = ?, recurrence = ?, credit_card_bank = ?,
@@ -263,7 +263,7 @@ router.put('/:id', (req, res) => {
     req.params.id
   );
 
-  const updated = db.prepare(`
+  const updated = await db.prepare(`
     SELECT e.*, u.name as user_name, u.avatar_color
     FROM expenses e JOIN users u ON e.user_id = u.id
     WHERE e.id = ?
@@ -275,12 +275,12 @@ router.put('/:id', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE /expenses/:id
 // ─────────────────────────────────────────────────────────────────────────────
-router.delete('/:id', (req, res) => {
-  const expense = db.prepare('SELECT * FROM expenses WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
+router.delete('/:id', async (req, res) => {
+  const expense = await db.prepare('SELECT * FROM expenses WHERE id = ? AND couple_id = ?').get(req.params.id, req.user.coupleId);
   if (!expense) return res.status(404).json({ error: 'Gasto não encontrado' });
   if (expense.user_id !== req.user.userId) return res.status(403).json({ error: 'Você só pode deletar seus próprios gastos' });
 
-  db.prepare('DELETE FROM expenses WHERE id = ?').run(req.params.id);
+  await db.prepare('DELETE FROM expenses WHERE id = ?').run(req.params.id);
   return res.json({ message: 'Gasto removido com sucesso' });
 });
 
