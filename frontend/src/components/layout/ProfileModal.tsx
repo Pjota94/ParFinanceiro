@@ -91,7 +91,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
             )}
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="mb-[25px] flex gap-3">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
           <Button type="button" className="flex-1" loading={saving} disabled={!preview && !removing} onClick={handleSave}>Salvar</Button>
         </div>
