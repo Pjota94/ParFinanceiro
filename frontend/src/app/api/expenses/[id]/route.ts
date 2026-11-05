@@ -19,6 +19,7 @@ interface ExpenseRow {
   credit_card_bank: string | null;
   total_installments: number | null;
   current_installment: number;
+  paid: number;
 }
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -36,7 +37,7 @@ export async function PUT(req: Request, ctx: Ctx) {
 
   const {
     description, amount, category, isShared, date, notes,
-    expenseType, recurrence, creditCardBank, totalInstallments, currentInstallment,
+    expenseType, recurrence, creditCardBank, totalInstallments, currentInstallment, paid,
   } = await req.json();
 
   let rec = recurrence !== undefined ? recurrence : expense.recurrence;
@@ -47,7 +48,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     `UPDATE expenses SET
       description = ?, amount = ?, category = ?, is_shared = ?, date = ?, notes = ?,
       expense_type = ?, recurrence = ?, credit_card_bank = ?,
-      total_installments = ?, current_installment = ?
+      total_installments = ?, current_installment = ?, paid = ?
      WHERE id = ?`,
     [
       description || expense.description,
@@ -60,6 +61,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       creditCardBank !== undefined ? creditCardBank : expense.credit_card_bank,
       totalInstallments !== undefined ? (totalInstallments ? parseInt(totalInstallments) : null) : expense.total_installments,
       currentInstallment !== undefined ? parseInt(currentInstallment) : expense.current_installment,
+      paid !== undefined ? (paid ? 1 : 0) : expense.paid,
       id,
     ]
   );

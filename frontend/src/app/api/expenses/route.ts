@@ -46,7 +46,7 @@ export async function POST(req: Request) {
 
   const {
     description, amount, category, isShared, date, notes, month, year,
-    expenseType, recurrence, creditCardBank, totalInstallments, currentInstallment, loanId,
+    expenseType, recurrence, creditCardBank, totalInstallments, currentInstallment, loanId, paid,
   } = await req.json();
 
   if (!description || !amount || !category) {
@@ -75,8 +75,8 @@ export async function POST(req: Request) {
       id, couple_id, user_id, description, amount, category, is_shared,
       date, notes, month, year,
       expense_type, recurrence, credit_card_bank,
-      total_installments, current_installment, loan_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      total_installments, current_installment, loan_id, paid
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, auth.coupleId, auth.userId, description, parseFloat(amount), category, isShared ? 1 : 0,
       date || now.toISOString().split('T')[0], notes || null,
@@ -84,6 +84,7 @@ export async function POST(req: Request) {
       expenseType || 'normal', rec, creditCardBank || null,
       totalInstallments ? parseInt(totalInstallments) : null,
       currentInstallment ? parseInt(currentInstallment) : 1, resolvedLoanId,
+      paid ? 1 : 0,
     ]
   );
 

@@ -74,6 +74,7 @@ const SCHEMA = `
     total_installments INTEGER,
     current_installment INTEGER DEFAULT 1,
     loan_id TEXT,
+    paid INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -116,6 +117,8 @@ async function runMigrations() {
     { col: 'loan_id', sql: 'ALTER TABLE expenses ADD COLUMN loan_id TEXT' },
     // Último mês (ano*12 + mês-1) em que um gasto fixo ainda aparece; NULL = sem fim
     { col: 'recurrence_end', sql: 'ALTER TABLE expenses ADD COLUMN recurrence_end INTEGER' },
+    // Status de pagamento: 0 = pendente (padrão), 1 = pago. Definido manualmente, não pela data.
+    { col: 'paid', sql: 'ALTER TABLE expenses ADD COLUMN paid INTEGER DEFAULT 0' },
   ];
   const userInfo = await client.execute('PRAGMA table_info(users)');
   if (!userInfo.rows.some((r) => r.name === 'avatar_url')) {

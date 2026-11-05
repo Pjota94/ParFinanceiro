@@ -42,11 +42,9 @@ function getBankLabel(bank: string | null) {
   return CREDIT_CARD_BANKS.find((b) => b.value === bank);
 }
 
-/** Pago = data de hoje ou anterior; Pendente = gasto com data futura. */
+/** Status de pagamento: definido manualmente via campo `paid`, não pela data. */
 function expenseStatus(e: Expense): 'pago' | 'pendente' {
-  if (!e.date) return 'pago';
-  const today = new Date().toISOString().split('T')[0];
-  return e.date > today ? 'pendente' : 'pago';
+  return e.paid ? 'pago' : 'pendente';
 }
 
 const canEndRecurrence = (e: Expense, userId?: string) =>
@@ -71,7 +69,6 @@ function ExpenseBadges({ expense }: { expense: Expense }) {
   return <>{badges}</>;
 }
 
-interface ByPerson { user_id: string; user_name: string; avatar_color: string; total: number }
 interface ByCategory { category: string; total: number; count: number }
 
 type FilterMode = 'todos' | 'cartao' | 'fixo' | 'financiamento' | 'emprestimo';
@@ -95,7 +92,6 @@ export default function Expenses() {
   const { user, partner } = useAuth();
   const { month, year, prevMonth, nextMonth, goToday, isCurrentMonth } = usePeriod();
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [byUser, setByUser] = useState<ByPerson[]>([]);
   const [byCategory, setByCategory] = useState<ByCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -118,6 +114,7 @@ export default function Expenses() {
   const [creditCardBank, setCreditCardBank] = useState('');
   const [totalInstallments, setTotalInstallments] = useState('');
   const [currentInstallment, setCurrentInstallment] = useState('1');
+  const [paid, setPaid] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
 
@@ -134,7 +131,6 @@ export default function Expenses() {
       .then((res) => {
         if (cancelled) return;
         setExpenses(res.data.expenses);
-        setByUser(res.data.byUser);
         setByCategory(res.data.byCategory);
       })
       .catch(() => { if (!cancelled) setError(true); })
@@ -149,6 +145,7 @@ export default function Expenses() {
     setIsShared(false); setDate(new Date().toISOString().split('T')[0]); setNotes('');
     setExpenseType('normal'); setRecurrence('unico');
     setCreditCardBank(''); setTotalInstallments(''); setCurrentInstallment('1');
+    setPaid(false);
     setErrors({});
   }
 
@@ -164,6 +161,7 @@ export default function Expenses() {
     setCreditCardBank(expense.credit_card_bank || '');
     setTotalInstallments(expense.total_installments?.toString() || '');
     setCurrentInstallment(expense.current_installment?.toString() || '1');
+    setPaid(expense.paid === 1);
     setErrors({});
     setModalOpen(true);
   }
@@ -188,6 +186,7 @@ export default function Expenses() {
       totalInstallments: (isLoanType || recurrence === 'parcelado')
         ? (totalInstallments ? parseInt(totalInstallments) : null) : null,
       currentInstallment: parseInt(currentInstallment) || 1,
+      paid,
     };
     setSaving(true);
     try {
@@ -230,29 +229,36 @@ export default function Expenses() {
     finally { setEnding(false); }
   }
 
-  const totalExpenses = byUser.reduce((s, p) => s + p.total, 0);
+  const modeMatch = (e: Expense, m: FilterMode) =>
+    m === 'todos' ? true :
+    m === 'cartao' ? e.expense_type === 'cartao' :
+    m === 'fixo' ? e.recurrence === 'fixo' :
+    e.expense_type === m;
+
+  // Gastos considerados nos cards de resumo: seguem apenas o filtro de tipo (abas),
+  // não a busca nem o filtro de categoria.
+  const summaryExpenses = useMemo(
+    () => expenses.filter((e) => modeMatch(e, filterMode)),
+    [expenses, filterMode]
+  );
+
+  const totalExpenses = summaryExpenses.reduce((s, e) => s + e.amount, 0);
 
   const people = useMemo(() => {
     const base = [user, partner].filter(Boolean).map((u) => ({ id: u!.id, name: u!.name, color: u!.avatarColor }));
-    return base.map((p) => ({ ...p, total: byUser.find((s) => s.user_id === p.id)?.total ?? 0 }));
-  }, [user, partner, byUser]);
+    return base.map((p) => ({
+      ...p,
+      total: summaryExpenses.filter((e) => e.user_id === p.id).reduce((s, e) => s + e.amount, 0),
+    }));
+  }, [user, partner, summaryExpenses]);
 
-  const modeCount = (m: FilterMode) =>
-    expenses.filter((e) =>
-      m === 'todos' ? true :
-      m === 'cartao' ? e.expense_type === 'cartao' :
-      m === 'fixo' ? e.recurrence === 'fixo' :
-      e.expense_type === m
-    ).length;
+  const modeCount = (m: FilterMode) => expenses.filter((e) => modeMatch(e, m)).length;
 
   const filtered = useMemo(() => {
     const q = normalize(search.trim());
     return expenses.filter((e) => {
       if (filterCategory && e.category !== filterCategory) return false;
-      if (filterMode === 'cartao' && e.expense_type !== 'cartao') return false;
-      if (filterMode === 'fixo' && e.recurrence !== 'fixo') return false;
-      if (filterMode === 'financiamento' && e.expense_type !== 'financiamento') return false;
-      if (filterMode === 'emprestimo' && e.expense_type !== 'emprestimo') return false;
+      if (!modeMatch(e, filterMode)) return false;
       if (!q) return true;
       return normalize(`${e.description} ${e.user_name} ${e.category} ${e.notes ?? ''}`).includes(q);
     });
@@ -605,6 +611,23 @@ export default function Expenses() {
             </span>
             <span className={cn('relative h-6 w-11 rounded-full transition-colors', isShared ? 'bg-primary' : 'bg-line-strong')} aria-hidden="true">
               <span className={cn('absolute top-0.5 size-5 rounded-full bg-white shadow transition-all', isShared ? 'left-[22px]' : 'left-0.5')} />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={paid}
+            onClick={() => setPaid(!paid)}
+            className={cn(optionCard(paid), 'flex min-h-14 w-full items-center gap-3 p-3')}
+          >
+            <Wallet size={18} className={paid ? 'text-primary' : 'text-ink-3'} aria-hidden="true" />
+            <span className="flex-1">
+              <span className="block text-sm font-semibold text-ink">Já foi pago</span>
+              <span className="block text-xs text-ink-3">Deixe desligado para marcar como pendente</span>
+            </span>
+            <span className={cn('relative h-6 w-11 rounded-full transition-colors', paid ? 'bg-primary' : 'bg-line-strong')} aria-hidden="true">
+              <span className={cn('absolute top-0.5 size-5 rounded-full bg-white shadow transition-all', paid ? 'left-[22px]' : 'left-0.5')} />
             </span>
           </button>
 

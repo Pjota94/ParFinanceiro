@@ -28,6 +28,7 @@ export interface MonthExpense {
   current_installment: number;
   loan_id: string | null;
   recurrence_end: number | null;
+  paid: number;
   created_at: string;
   projected?: boolean;
 }
@@ -76,6 +77,7 @@ export async function getMonthExpenses(coupleId: string, m: number, y: number): 
       month: m,
       year: y,
       date: shiftDate(e.date, m, y),
+      paid: 0,
       projected: true,
     });
   }
@@ -103,6 +105,7 @@ export async function getMonthExpenses(coupleId: string, m: number, y: number): 
       year: y,
       date: shiftDate(e.date, m, y),
       current_installment: number,
+      paid: 0,
       projected: true,
     });
   }

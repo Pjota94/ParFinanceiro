@@ -60,6 +60,8 @@ export interface Expense {
   current_installment: number;
   // Agrupador de empréstimo/financiamento (todas as parcelas do mesmo contrato)
   loan_id: string | null;
+  /** Status de pagamento: 0 = pendente, 1 = pago. Definido manualmente. */
+  paid: number;
   created_at: string;
   /** Último mês do gasto fixo (ano*12 + mês-1); null = sem data de término */
   recurrence_end?: number | null;
