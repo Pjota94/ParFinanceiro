@@ -89,6 +89,8 @@ export interface Loan {
   first_date: string;          // data da primeira parcela
   last_date: string;           // data da última lançada
   notes: string | null;
+  /** 1 se a parcela mais recente está marcada como paga, 0 caso contrário */
+  latest_paid: number;
 }
 
 export interface Goal {

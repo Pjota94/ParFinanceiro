@@ -8,7 +8,6 @@ import api from '../services/api';
 import { type Expense, type Loan, EXPENSE_CATEGORIES } from '../types';
 import { useSort } from '../hooks/useSort';
 import { formatCurrency, formatDate, formatMonthYear, normalize } from '../lib/format';
-import { addOneMonth, daysUntil } from '../lib/dates';
 import PageHeader from '../components/ui/PageHeader';
 import Modal from '../components/ui/Modal';
 import CurrencyInput from '../components/ui/CurrencyInput';
@@ -50,16 +49,13 @@ const progressOf = (l: Pick<Loan, 'current_installment' | 'total_installments'>)
   Math.min((l.current_installment / l.total_installments) * 100, 100);
 
 /**
- * Status calculado a partir das parcelas lançadas (não há campo de status no banco):
- * quitado → atrasado (próxima parcela já passou da data estimada) → pago no mês → pendente.
+ * Status do contrato baseado no pagamento real das parcelas:
+ * quitado (todas as parcelas lançadas) → pago (parcela mais recente marcada como paga) → pendente.
+ * O status não é mais inferido pela data; depende do campo `paid` de cada parcela.
  */
 function loanStatus(l: Loan): { status: PaymentStatus; label?: string } {
   if (l.current_installment >= l.total_installments) return { status: 'quitado' };
-  const due = addOneMonth(l.last_date);
-  if (daysUntil(due) < 0) return { status: 'atrasado' };
-  const now = new Date();
-  const last = new Date(l.last_date + 'T00:00:00');
-  if (last.getMonth() === now.getMonth() && last.getFullYear() === now.getFullYear()) return { status: 'pago', label: 'Pago no mês' };
+  if (l.latest_paid) return { status: 'pago' };
   return { status: 'pendente' };
 }
 
@@ -146,6 +142,7 @@ export default function Loans() {
         totalInstallments: installLoan.total_installments,
         currentInstallment: nextInstallment,
         loanId: installLoan.loan_id,
+        paid: true,
       });
       toast.success(`Parcela ${nextInstallment}/${installLoan.total_installments} registrada. Mais um passo!`);
       setInstallModalOpen(false);

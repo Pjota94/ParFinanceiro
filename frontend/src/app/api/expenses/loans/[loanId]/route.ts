@@ -19,6 +19,7 @@ interface ExpenseRow {
   user_name: string;
   avatar_color: string;
   date: string | null;
+  paid: number;
 }
 
 type Ctx = { params: Promise<{ loanId: string }> };
@@ -50,6 +51,7 @@ export async function GET(req: Request, ctx: Ctx) {
   const totalAmount = latest.amount * latest.total_installments;
   const remainingInstallments = latest.total_installments - latest.current_installment;
   const remainingAmount = latest.amount * remainingInstallments;
+  const latestPaid = latest.paid ? 1 : 0;
 
   let estimatedEndDate: string | null = null;
   if (latest.date && remainingInstallments >= 0) {
@@ -76,6 +78,7 @@ export async function GET(req: Request, ctx: Ctx) {
     total_amount: totalAmount,
     remaining_installments: remainingInstallments,
     remaining_amount: remainingAmount,
+    latest_paid: latestPaid,
     estimated_end_date: estimatedEndDate,
     first_date: installments[0]?.date ?? latest.date,
     last_date: latest.date,

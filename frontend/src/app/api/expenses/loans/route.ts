@@ -20,6 +20,7 @@ interface LoanRow {
   paid_installments: number;
   total_paid: number;
   current_installment: number;
+  latest_paid: number;
   first_date: string;
   last_date: string;
 }
@@ -36,6 +37,9 @@ export async function GET(req: Request) {
        COUNT(*) as paid_installments,
        SUM(e.amount) as total_paid,
        MAX(e.current_installment) as current_installment,
+       (SELECT le.paid FROM expenses le
+          WHERE le.loan_id = e.loan_id AND le.couple_id = e.couple_id
+          ORDER BY le.current_installment DESC LIMIT 1) as latest_paid,
        MIN(e.date) as first_date,
        MAX(e.date) as last_date
      FROM expenses e JOIN users u ON e.user_id = u.id
@@ -52,6 +56,7 @@ export async function GET(req: Request) {
     const remaining = r.total_installments - r.current_installment;
     return {
       ...r,
+      latest_paid: r.latest_paid ? 1 : 0,
       total_amount: totalAmount,
       remaining_installments: remaining,
       remaining_amount: r.amount * remaining,
