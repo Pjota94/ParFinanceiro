@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { usePeriod } from '../hooks/usePeriod';
 import { useSort } from '../hooks/useSort';
+import { prefersReducedMotion } from '../hooks/useReducedMotion';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency, formatDate, normalize } from '../lib/format';
 import PageHeader from '../components/ui/PageHeader';
@@ -45,6 +46,33 @@ function getBankLabel(bank: string | null) {
 /** Status de pagamento: definido manualmente via campo `paid`, não pela data. */
 function expenseStatus(e: Expense): 'pago' | 'pendente' {
   return e.paid ? 'pago' : 'pendente';
+}
+
+/** Valor monetário que anima de 0 até o total atual (reanima quando o valor muda). */
+function AnimatedCurrency({ value, className }: { value: number; className?: string }) {
+  const [shown, setShown] = useState(0);
+
+  useEffect(() => {
+    if (prefersReducedMotion() || !Number.isFinite(value)) { setShown(value); return; }
+    const duration = 700;
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setShown(value * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  return (
+    <span className={className}>
+      <span className="sr-only">{formatCurrency(value)}</span>
+      <span aria-hidden="true" className="num">{formatCurrency(shown)}</span>
+    </span>
+  );
 }
 
 const canEndRecurrence = (e: Expense, userId?: string) =>
@@ -290,21 +318,21 @@ export default function Expenses() {
 
       {!error && (
         <section aria-label="Resumo dos gastos" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card className="border-transparent bg-gradient-to-br from-brand-navy to-brand-navy-light p-5 text-white shadow-pop sm:col-span-2 lg:col-span-1">
+          <Card key={`total-${filterMode}`} className="animate-fade-up border-transparent bg-gradient-to-br from-brand-navy to-brand-navy-light p-5 text-white shadow-pop sm:col-span-2 lg:col-span-1">
             <div className="flex items-start justify-between">
               <p className="t-label text-white/80">Total de gastos</p>
               <Wallet size={18} className="text-white/80" aria-hidden="true" />
             </div>
-            <p className="t-value-xl mt-2">{formatCurrency(totalExpenses)}</p>
+            <AnimatedCurrency value={totalExpenses} className="t-value-xl mt-2 block" />
             <p className="mt-1 text-sm text-white/80">{MONTHS[month - 1]} de {year}</p>
           </Card>
           {people.map((p) => (
-            <Card key={p.id} className="p-5" style={{ borderTop: `3px solid ${p.color}` }}>
+            <Card key={`${p.id}-${filterMode}`} className="animate-fade-up p-5" style={{ borderTop: `3px solid ${p.color}` }}>
               <div className="flex items-center gap-2">
                 <Avatar userId={p.id} name={p.name} color={p.color} size="sm" />
                 <span className="text-sm font-medium text-ink [overflow-wrap:anywhere] line-clamp-1">{p.name}</span>
               </div>
-              <p className="t-value mt-3">{formatCurrency(p.total)}</p>
+              <AnimatedCurrency value={p.total} className="t-value mt-3 block text-ink" />
               <p className="t-support mt-0.5">{totalExpenses > 0 ? `${((p.total / totalExpenses) * 100).toFixed(0)}% do total` : 'Sem gastos neste mês'}</p>
             </Card>
           ))}
@@ -364,7 +392,7 @@ export default function Expenses() {
             action={<Button variant="outline" onClick={() => { setSearch(''); setFilterCategory(''); setFilterMode('todos'); }}>Limpar filtros</Button>}
           />
         ) : (
-          <>
+          <div key={`${filterMode}-${filterCategory}-${search}`} className="animate-fade-up">
             {/* Desktop: tabela */}
             <div className="hidden md:block">
               <table className="w-full text-sm">
@@ -465,7 +493,7 @@ export default function Expenses() {
                 );
               })}
             </ul>
-          </>
+          </div>
         )}
       </Card>
 
