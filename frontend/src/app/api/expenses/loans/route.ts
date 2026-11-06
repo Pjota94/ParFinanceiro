@@ -56,6 +56,8 @@ export async function GET(req: Request) {
     const remaining = r.total_installments - r.current_installment;
     return {
       ...r,
+      // Valor pago = total do contrato - valor restante
+      total_paid: Math.max(totalAmount - r.amount * remaining, 0),
       latest_paid: r.latest_paid ? 1 : 0,
       total_amount: totalAmount,
       remaining_installments: remaining,

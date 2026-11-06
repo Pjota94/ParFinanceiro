@@ -47,10 +47,11 @@ export async function GET(req: Request, ctx: Ctx) {
   );
 
   const paidInstallments = installments.length;
-  const totalPaid = installments.reduce((s, i) => s + i.amount, 0);
   const totalAmount = latest.amount * latest.total_installments;
   const remainingInstallments = latest.total_installments - latest.current_installment;
   const remainingAmount = latest.amount * remainingInstallments;
+  // Valor pago = total do contrato - valor restante
+  const totalPaid = Math.max(totalAmount - remainingAmount, 0);
   const latestPaid = latest.paid ? 1 : 0;
 
   let estimatedEndDate: string | null = null;
